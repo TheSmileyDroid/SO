@@ -7,28 +7,28 @@
 #include <time.h>
 
 typedef struct {
-    char *name;
+    char *name[20];
     int argc;
     char *args[100];
 } Command;
 
-int parseCommand(char *input, Command *command) {
+int parseCommand(char *input, char *args[], int *argc) {
     char *token = strtok(input, " ");
-    command->name = token;
     int i = 0;
     while(token != NULL) {
-        command->args[i] = token;
+        args[i] = token;
         token = strtok(NULL, " ");
         i++;
     }
-    command->argc = i;
-    command->args[i] = NULL;
+    *argc = i;
+    args[i] = NULL;
     return 0;
 }
 
 Command *newCommand(char *strargs) {
     Command *command = malloc(sizeof(Command));
-    parseCommand(strargs, command);
+    parseCommand(strargs, command->args, &command->argc);
+    *command->name = command->args[0];
 
     return command;
 }
@@ -51,7 +51,74 @@ void logCommand(Command *command) {
 }
 
 int processCommand(Command *command) {
-    return execvp(command->name, command->args);
+    char *arg[100];
+    arg[0] = command->args[0];
+    return execvp(command->args[0], arg);
+}
+
+int processOperator(char *input) {
+    char *pipeToken = strstr(input, "|");
+    if (pipeToken != NULL) {
+        char *cmd1 = strtok(input, "|");
+        char *cmd2 = strtok(NULL, "|");
+
+        int fd[2];
+        pid_t p1, p2;
+        if (pipe(fd) < 0) {
+            printf("Erro ao criar pipe\n");
+            return 1;
+        }
+
+        p1 = fork();
+
+        if (p1 == 0) { // Processo filho
+            close(fd[0]);
+            dup2(fd[1], STDOUT_FILENO);
+            close(fd[1]);
+
+            char* args[100];
+            int argc;
+            parseCommand(cmd1, args, &argc);
+
+            Command *command = newCommand(cmd1);
+            logCommand(command);
+            if (execvp(args[0], args) < 0) {
+                printf("Erro ao executar comando\n");
+                exit(0);
+            }
+        } else {
+            p2 = fork();
+
+            if (p2 == 0) { // Processo filho
+                close(fd[1]);
+                dup2(fd[0], STDIN_FILENO);
+                close(fd[0]);
+
+                char* args[100];
+                int argc;
+                parseCommand(cmd2, args, &argc);
+
+                Command *command = newCommand(cmd2);
+                logCommand(command);
+                if (execvp(args[0], args) < 0) {
+                    printf("Erro ao executar comando\n");
+                    exit(0);
+                }
+            } else {
+                close(fd[0]);
+                close(fd[1]);
+                wait(NULL);
+                wait(NULL);
+            }
+        }
+    } else {
+        char* args[100];
+        int argc;
+        parseCommand(input, args, &argc);
+        
+        
+    }
+    return 0;
 }
 
 
@@ -65,21 +132,13 @@ int main() {
         int size = strcspn(input, "\n");
         input[size] = 0;
 
-        Command *command = newCommand(input);
-
-        logCommand(command);
-
-        pid_t pid = fork();
-
-        if(pid == 0) { // Processo filho
-            if (processCommand(command) == -1) {
-                printf("Comando não encontrado\n");
-            }
-            exit(0);
-        } else {
-            wait(NULL);
+        if (strcmp(input, "exit") == 0) {
+            break;
         }
+
+        processOperator(input);
     }
 
     return 0;
 }
+

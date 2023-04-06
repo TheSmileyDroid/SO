@@ -90,27 +90,47 @@ int main() {
         char input[100];
         fgets(input, 100, stdin);
 
-        int size = strcspn(input, "\n");
-        input[size] = 0;
+        int len = strlen(input);
+        if (input[len - 1] == '\n') {
+            input[len - 1] = '\0';
+        }
 
         if (strcmp(input, "exit") == 0) {
             break;
         }
 
         char *args[100];
-        char *token = strtok(input, " ");
-        int i = 0;
+        int argc = 0;
+        bool in_quotes = false;
+        char *arg_start = input;
 
-        while (token != NULL) {
-            args[i] = token;
-            token = strtok(NULL, " ");
-            i++;
+        for (char *p = input; *p; p++) {
+            if (*p == '"' || *p == '\'') {
+                in_quotes = !in_quotes;
+            } else if (*p == ' ' && !in_quotes) {
+                *p = '\0';
+                args[argc++] = arg_start;
+                arg_start = p + 1;
+            }
         }
 
-        args[i] = NULL;
+        args[argc++] = arg_start;
+        args[argc] = NULL;
+
+        for (int i = 0; i < argc; i++) {
+            char *arg = args[i];
+            int len = strlen(arg);
+            if (arg[0] == '"' && arg[len - 1] == '"') {
+                arg[len - 1] = '\0';
+                args[i] = arg + 1;
+            } else if (arg[0] == '\'' && arg[len - 1] == '\'') {
+                arg[len - 1] = '\0';
+                args[i] = arg + 1;
+            }
+        }
 
         process(args);
-        }
+        } 
 
     return 0;
 }

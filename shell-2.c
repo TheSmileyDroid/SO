@@ -28,30 +28,45 @@ void run(char *args[100]) {
     }
 }
 
-void process(char *args[100]) {
-    int pos = get_pos(args, "|");
+enum {
+    RUN = 0,
+    PIPE = 1,
+};
 
-    if (pos != -1) {
-        run(args);
-    } else {
-        char *args1[100];
-        char *args2[100];
+int separate(char *args[100], char *args1[100], char *args2[100]) {
+    int pipePos = get_pos(args, "|");
 
+    if (pipePos != -1) {
         int i = 0;
-        while (i < pos) {
+        while (i < pipePos) {
             args1[i] = args[i];
             i++;
         }
         args1[i] = NULL;
 
         i = 0;
-        while (args[pos + 1] != NULL) {
-            args2[i] = args[pos + 1];
-            pos++;
+        int j = pipePos;
+        while (args[j + 1] != NULL) {
+            args2[i] = args[j + 1];
+            j++;
             i++;
         }
         args2[i] = NULL;
+        return PIPE;
+    } else {
+        return RUN;
+    }
+}
 
+void process(char *args[100]) {
+    char *args1[100] = {NULL};
+    char *args2[100] = {NULL};
+
+    int state = separate(args, args1, args2);
+
+    if (state == RUN) {
+        run(args);
+    } else if (state == PIPE) {
         int fd[2];
         pipe(fd);
 
@@ -70,7 +85,8 @@ void process(char *args[100]) {
                 close(fd[1]);
                 dup2(fd[0], STDIN_FILENO);
                 close(fd[0]);
-                run(args2);
+                execvp(args2[0], args2);
+                printf("Command not found: %s \n", args2[0]);
             } else {
                 close(fd[0]);
                 close(fd[1]);

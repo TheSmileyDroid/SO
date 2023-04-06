@@ -1,0 +1,8 @@
+build.sh
+input.txt
+output.txt
+shell
+shell-2.c
+shell.c
+build.sh
+> > > 

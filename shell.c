@@ -43,64 +43,50 @@ enum {
   PIPE = 1,
   AND = 2,
   OR = 3,
+  BACKGROUND = 4,
 };
+
+void divide_by(char *args[100], char *args1[100], char *args2[100], int pos) {
+    int i = 0;
+    while (i < pos) {
+      args1[i] = args[i];
+      i++;
+    }
+    args1[i] = NULL;
+
+    i = 0;
+    int j = pos;
+    while (args[j + 1] != NULL) {
+      args2[i] = args[j + 1];
+      j++;
+      i++;
+    }
+    args2[i] = NULL;
+}
 
 int separate(char *args[100], char *args1[100], char *args2[100]) {
   int pipePos = get_pos(args, "|");
   int andPos = get_pos(args, "&&");
   int orPos = get_pos(args, "||");
+  int backgroundPos = get_pos(args, "&");
 
   if (pipePos != -1) {
-    int i = 0;
-    while (i < pipePos) {
-      args1[i] = args[i];
-      i++;
-    }
-    args1[i] = NULL;
-
-    i = 0;
-    int j = pipePos;
-    while (args[j + 1] != NULL) {
-      args2[i] = args[j + 1];
-      j++;
-      i++;
-    }
-    args2[i] = NULL;
+    divide_by(args, args1, args2, pipePos);
     return PIPE;
   } else if (orPos != -1) {
-    int i = 0;
-    while (i < orPos) {
-      args1[i] = args[i];
-      i++;
-    }
-    args1[i] = NULL;
-
-    i = 0;
-    int j = orPos;
-    while (args[j + 1] != NULL) {
-      args2[i] = args[j + 1];
-      j++;
-      i++;
-    }
-    args2[i] = NULL;
+    divide_by(args, args1, args2, orPos);
     return OR;
   } else if (andPos != -1) {
+    divide_by(args, args1, args2, andPos);
+    return AND;
+  } else if (backgroundPos != -1) {
     int i = 0;
-    while (i < andPos) {
+    while (args[i] != NULL) {
       args1[i] = args[i];
       i++;
     }
     args1[i] = NULL;
-
-    i = 0;
-    int j = andPos;
-    while (args[j + 1] != NULL) {
-      args2[i] = args[j + 1];
-      j++;
-      i++;
-    }
-    args2[i] = NULL;
-    return AND;
+    return BACKGROUND;
   } else {
     return RUN;
   }

@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
@@ -21,20 +22,33 @@ void run(char *args[100]) {
   pid_t pid = fork();
 
   if (pid == 0) {
-    execvp(args[0], args);
-    printf("Command not found: %s \n", args[0]);
+    int ret = execvp(args[0], args);
+    if (ret != 0) {
+      exit(-1);
+    }
+    exit(0);
   } else {
-    wait(NULL);
+    int status;
+    wait(&status);
+    if (status != 0) {
+      // printf("Command failed: %s \n", args[0]);
+      exit(-1);
+    }
+    exit(0);
   }
 }
 
 enum {
   RUN = 0,
   PIPE = 1,
+  AND = 2,
+  OR = 3,
 };
 
 int separate(char *args[100], char *args1[100], char *args2[100]) {
   int pipePos = get_pos(args, "|");
+  int andPos = get_pos(args, "&&");
+  int orPos = get_pos(args, "||");
 
   if (pipePos != -1) {
     int i = 0;
@@ -53,14 +67,50 @@ int separate(char *args[100], char *args1[100], char *args2[100]) {
     }
     args2[i] = NULL;
     return PIPE;
+  } else if (orPos != -1) {
+    int i = 0;
+    while (i < orPos) {
+      args1[i] = args[i];
+      i++;
+    }
+    args1[i] = NULL;
+
+    i = 0;
+    int j = orPos;
+    while (args[j + 1] != NULL) {
+      args2[i] = args[j + 1];
+      j++;
+      i++;
+    }
+    args2[i] = NULL;
+    return OR;
+  } else if (andPos != -1) {
+    int i = 0;
+    while (i < andPos) {
+      args1[i] = args[i];
+      i++;
+    }
+    args1[i] = NULL;
+
+    i = 0;
+    int j = andPos;
+    while (args[j + 1] != NULL) {
+      args2[i] = args[j + 1];
+      j++;
+      i++;
+    }
+    args2[i] = NULL;
+    return AND;
   } else {
     return RUN;
   }
 }
 
+
 void process(char *args[100]) {
   /*
-  printf("args: ");
+  pid_t pid = getpid();
+  printf("PID: %d: args: ", pid);
   int i = 0;
   while (args[i] != NULL) {
     printf("%s, ", args[i]);
@@ -72,7 +122,7 @@ void process(char *args[100]) {
   char *args2[100] = {NULL};
 
   int state = separate(args, args1, args2);
-  // printf("State: %d\n", state);
+  // printf("PID: %d: State: %d\n", pid, state);
 
   if (state == RUN) {
     run(args);
@@ -88,8 +138,8 @@ void process(char *args[100]) {
       close(fd[0]);
       dup2(fd[1], STDOUT_FILENO);
       close(fd[1]);
-      execvp(args1[0], args1);
-      printf("Command not found: %s \n", args1[0]);
+      process(args1);
+      exit(0);
     } else {
       p2 = fork();
       if (p2 == 0) {
@@ -105,7 +155,34 @@ void process(char *args[100]) {
         wait(NULL);
       }
     }
-  }
+  } else if (state == OR) {
+    pid_t pid = fork();
+    if (pid == 0) {
+      process(args1);
+      exit(-1);
+    } else {
+      int status;
+      wait(&status);
+      if (status != 0) {
+        process(args2);
+        exit(-1);
+      }
+    }
+  } else if (state == AND) {
+    pid_t pid = fork();
+    if (pid == 0) {
+      process(args1);
+      exit(-1);
+    } else {
+      int status;
+      wait(&status);
+      if (status == 0) {
+        process(args2);
+      } else {
+        exit(-1);
+      }
+    }
+  } 
 }
 
 void get_input(char *input) {
@@ -148,7 +225,14 @@ void parse_input(char *input, char *args[100], int *argc) {
 }
 
 void process_input(char *args[100]) {
-  process(args);
+  pid_t pid = fork();
+
+  if (pid == 0) {
+    process(args);
+    exit(0);
+  } else {
+    wait(NULL);
+  }
 }
 
 int main() {

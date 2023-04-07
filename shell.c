@@ -85,7 +85,7 @@ int separate(char *args[100], char *args1[100], char *args2[100]) {
       args1[i] = args[i];
       i++;
     }
-    args1[i] = NULL;
+    args1[backgroundPos] = NULL;
     return BACKGROUND;
   } else {
     return RUN;
@@ -108,7 +108,7 @@ void process(char *args[100]) {
   char *args2[100] = {NULL};
 
   int state = separate(args, args1, args2);
-  // printf("PID: %d: State: %d\n", pid, state);
+  //printf("PID: %d: State: %d\n", pid, state);
 
   if (state == RUN) {
     run(args);
@@ -168,7 +168,13 @@ void process(char *args[100]) {
         exit(-1);
       }
     }
-  } 
+  } else if (state == BACKGROUND) {
+    pid_t pid = fork();
+    if (pid == 0) {
+      process(args1);
+      exit(0);
+    }
+  }
 }
 
 void get_input(char *input) {

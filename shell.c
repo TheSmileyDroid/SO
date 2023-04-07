@@ -108,17 +108,53 @@ void process(char *args[100]) {
   }
 }
 
+void get_input(char *input) {
+  printf("> ");
+  fgets(input, 100, stdin);
+  int len = strlen(input);
+  if (input[len - 1] == '\n') {
+    input[len - 1] = '\0';
+  }
+}
+
+void parse_input(char *input, char *args[100], int *argc) {
+  bool in_quotes = false;
+  char *arg_start = input;
+
+  for (char *p = input; *p; p++) {
+    if (*p == '"' || *p == '\'') {
+      in_quotes = !in_quotes;
+    } else if (*p == ' ' && !in_quotes) {
+      *p = '\0';
+      args[(*argc)++] = arg_start;
+      arg_start = p + 1;
+    }
+  }
+
+  args[(*argc)++] = arg_start;
+  args[*argc] = NULL;
+
+  for (int i = 0; i < *argc; i++) {
+    char *arg = args[i];
+    int len = strlen(arg);
+    if (arg[0] == '"' && arg[len - 1] == '"') {
+      arg[len - 1] = '\0';
+      args[i] = arg + 1;
+    } else if (arg[0] == '\'' && arg[len - 1] == '\'') {
+      arg[len - 1] = '\0';
+      args[i] = arg + 1;
+    }
+  }
+}
+
+void process_input(char *args[100]) {
+  process(args);
+}
+
 int main() {
   while (true) {
-    printf("> ");
-
     char input[100];
-    fgets(input, 100, stdin);
-
-    int len = strlen(input);
-    if (input[len - 1] == '\n') {
-      input[len - 1] = '\0';
-    }
+    get_input(input);
 
     if (strcmp(input, "exit") == 0) {
       break;
@@ -126,35 +162,10 @@ int main() {
 
     char *args[100];
     int argc = 0;
-    bool in_quotes = false;
-    char *arg_start = input;
 
-    for (char *p = input; *p; p++) {
-      if (*p == '"' || *p == '\'') {
-        in_quotes = !in_quotes;
-      } else if (*p == ' ' && !in_quotes) {
-        *p = '\0';
-        args[argc++] = arg_start;
-        arg_start = p + 1;
-      }
-    }
+    parse_input(input, args, &argc);
 
-    args[argc++] = arg_start;
-    args[argc] = NULL;
-
-    for (int i = 0; i < argc; i++) {
-      char *arg = args[i];
-      int len = strlen(arg);
-      if (arg[0] == '"' && arg[len - 1] == '"') {
-        arg[len - 1] = '\0';
-        args[i] = arg + 1;
-      } else if (arg[0] == '\'' && arg[len - 1] == '\'') {
-        arg[len - 1] = '\0';
-        args[i] = arg + 1;
-      }
-    }
-
-    process(args);
+    process_input(args);
   }
 
   return 0;

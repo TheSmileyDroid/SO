@@ -6,6 +6,8 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+#include <fcntl.h>
+
 
 int get_pos(char *args[100], char *str) {
   int i = 0;
@@ -44,6 +46,9 @@ enum {
   AND = 2,
   OR = 3,
   BACKGROUND = 4,
+  REDIRECT_OUT = 5,
+  REDIRECT_IN = 6,
+  APPEND = 7,
 };
 
 void divide_by(char *args[100], char *args1[100], char *args2[100], int pos) {
@@ -69,6 +74,10 @@ int separate(char *args[100], char *args1[100], char *args2[100]) {
   int andPos = get_pos(args, "&&");
   int orPos = get_pos(args, "||");
   int backgroundPos = get_pos(args, "&");
+  int redirectOutPos = get_pos(args, ">");
+  int redirectInPos = get_pos(args, "<");
+  int appendPos = get_pos(args, ">>");
+
 
   if (pipePos != -1) {
     divide_by(args, args1, args2, pipePos);
@@ -87,6 +96,15 @@ int separate(char *args[100], char *args1[100], char *args2[100]) {
     }
     args1[backgroundPos] = NULL;
     return BACKGROUND;
+  } else if (appendPos != -1) {
+    divide_by(args, args1, args2, appendPos);
+    return APPEND;
+  } else if (redirectOutPos != -1) {
+    divide_by(args, args1, args2, redirectOutPos);
+    return REDIRECT_OUT;
+  } else if (redirectInPos != -1) {
+    divide_by(args, args1, args2, redirectInPos);
+    return REDIRECT_IN;
   } else {
     return RUN;
   }
@@ -171,6 +189,33 @@ void process(char *args[100]) {
   } else if (state == BACKGROUND) {
     pid_t pid = fork();
     if (pid == 0) {
+      process(args1);
+      exit(0);
+    }
+  } else if (state == REDIRECT_OUT) {
+    pid_t pid = fork();
+    if (pid == 0) {
+      int fd = open(args2[0], O_WRONLY | O_CREAT | O_TRUNC, 0644);
+      dup2(fd, STDOUT_FILENO);
+      close(fd);
+      process(args1);
+      exit(0);
+    }
+  } else if (state == REDIRECT_IN) {
+    pid_t pid = fork();
+    if (pid == 0) {
+      int fd = open(args2[0], O_RDONLY);
+      dup2(fd, STDIN_FILENO);
+      close(fd);
+      process(args1);
+      exit(0);
+    }
+  } else if (state == APPEND) {
+    pid_t pid = fork();
+    if (pid == 0) {
+      int fd = open(args2[0], O_WRONLY | O_CREAT | O_APPEND, 0644);
+      dup2(fd, STDOUT_FILENO);
+      close(fd);
       process(args1);
       exit(0);
     }

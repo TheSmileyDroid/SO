@@ -8,7 +8,12 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-
+/**
+ * Retorna a posição de um argumento
+ * 
+ * args argumentos
+ * str argumento a ser procurado
+ */
 int get_pos(char *args[100], char *str) {
   int i = 0;
   while (args[i] != NULL) {
@@ -20,6 +25,11 @@ int get_pos(char *args[100], char *str) {
   return -1;
 }
 
+/**
+ * Executa um comando sem operadores
+ * 
+ * args argumentos
+ */
 void run(char *args[100]) {
   pid_t pid = fork();
 
@@ -51,6 +61,14 @@ enum {
   APPEND = 7,
 };
 
+/**
+ * Divide os argumentos em duas partes na posição pos
+ * 
+ * args argumentos
+ * args1 primeira parte
+ * args2 segunda parte
+ * pos posição
+ */
 void divide_by(char *args[100], char *args1[100], char *args2[100], int pos) {
     int i = 0;
     while (i < pos) {
@@ -69,6 +87,23 @@ void divide_by(char *args[100], char *args1[100], char *args2[100], int pos) {
     args2[i] = NULL;
 }
 
+/**
+ * Divide os argumentos em duas partes
+ * args: argumentos
+ * args1: primeira parte
+ * args2: segunda parte
+ *
+ * Retorna o o tipo de operador ou RUN se não tiver operador
+ *
+ * 0: RUN
+ * 1: PIPE
+ * 2: AND
+ * 3: OR
+ * 4: BACKGROUND
+ * 5: REDIRECT_OUT
+ * 6: REDIRECT_IN
+ * 7: APPEND
+ */
 int separate(char *args[100], char *args1[100], char *args2[100]) {
   int pipePos = get_pos(args, "|");
   int andPos = get_pos(args, "&&");
@@ -110,28 +145,20 @@ int separate(char *args[100], char *args1[100], char *args2[100]) {
   }
 }
 
-
+/**
+ * Checa se o comando tem operadores e executa
+ * 
+ * args argumentos
+ */
 void process(char *args[100]) {
-  /*
-  pid_t pid = getpid();
-  printf("PID: %d: args: ", pid);
-  int i = 0;
-  while (args[i] != NULL) {
-    printf("%s, ", args[i]);
-    i += 1;
-  }
-  printf("\n");
-  */
   char *args1[100] = {NULL};
   char *args2[100] = {NULL};
 
-  int state = separate(args, args1, args2);
-  //printf("PID: %d: State: %d\n", pid, state);
+  int operator = separate(args, args1, args2);
 
-  if (state == RUN) {
+  if (operator == RUN) { // comando sem operadores
     run(args);
-    return;
-  } else if (state == PIPE) {
+  } else if (operator == PIPE) { // comando com pipe
     int fd[2];
     pipe(fd);
 
@@ -159,7 +186,7 @@ void process(char *args[100]) {
         wait(NULL);
       }
     }
-  } else if (state == OR) {
+  } else if (operator == OR) { // comando com ou
     pid_t pid = fork();
     if (pid == 0) {
       process(args1);
@@ -167,12 +194,12 @@ void process(char *args[100]) {
     } else {
       int status;
       wait(&status);
-      if (status != 0) {
+      if (status != 0) { // se o comando anterior terminou com erro
         process(args2);
         exit(-1);
       }
     }
-  } else if (state == AND) {
+  } else if (operator == AND) { // comando com e
     pid_t pid = fork();
     if (pid == 0) {
       process(args1);
@@ -180,39 +207,42 @@ void process(char *args[100]) {
     } else {
       int status;
       wait(&status);
-      if (status == 0) {
+      if (status == 0) { // se o comando anterior terminou com sucesso
         process(args2);
       } else {
         exit(-1);
       }
     }
-  } else if (state == BACKGROUND) {
+  } else if (operator == BACKGROUND) { // comando com &
     pid_t pid = fork();
     if (pid == 0) {
       process(args1);
       exit(0);
     }
-  } else if (state == REDIRECT_OUT) {
+  } else if (operator == REDIRECT_OUT) { // comando com redirecionamento de saída
     pid_t pid = fork();
     if (pid == 0) {
+      // cria o arquivo se não existir e apaga o conteúdo
       int fd = open(args2[0], O_WRONLY | O_CREAT | O_TRUNC, 0644);
       dup2(fd, STDOUT_FILENO);
       close(fd);
       process(args1);
       exit(0);
     }
-  } else if (state == REDIRECT_IN) {
+  } else if (operator == REDIRECT_IN) { // comando com redirecionamento de entrada
     pid_t pid = fork();
     if (pid == 0) {
+      // abre o arquivo para leitura
       int fd = open(args2[0], O_RDONLY);
       dup2(fd, STDIN_FILENO);
       close(fd);
       process(args1);
       exit(0);
     }
-  } else if (state == APPEND) {
+  } else if (operator == APPEND) { // comando com append
     pid_t pid = fork();
     if (pid == 0) {
+      // cria o arquivo se não existir e mantém o conteúdo existente
       int fd = open(args2[0], O_WRONLY | O_CREAT | O_APPEND, 0644);
       dup2(fd, STDOUT_FILENO);
       close(fd);
@@ -222,8 +252,13 @@ void process(char *args[100]) {
   }
 }
 
+/**
+ * Recebe o input do usuário
+ * 
+ * input input do usuário
+ */
 void get_input(char *input) {
-  printf("> ");
+  printf("> "); // prompt do shell
   fgets(input, 100, stdin);
   int len = strlen(input);
   if (input[len - 1] == '\n') {
@@ -231,8 +266,15 @@ void get_input(char *input) {
   }
 }
 
+/**
+  * Divide o input em argumentos
+  * 
+  * input input do usuário
+  * args argumentos
+  * argc quantidade de argumentos
+  */
 void parse_input(char *input, char *args[100], int *argc) {
-  bool in_quotes = false;
+  bool in_quotes = false; // se está dentro de aspas
   char *arg_start = input;
 
   for (char *p = input; *p; p++) {
@@ -246,21 +288,29 @@ void parse_input(char *input, char *args[100], int *argc) {
   }
 
   args[(*argc)++] = arg_start;
-  args[*argc] = NULL;
+  args[*argc] = NULL; // último argumento é NULL
 
-  for (int i = 0; i < *argc; i++) {
+  for (int i = 0; i < *argc; i++) { // remove aspas dos argumentos
     char *arg = args[i];
     int len = strlen(arg);
-    if (arg[0] == '"' && arg[len - 1] == '"') {
+    if (arg[0] == '"' && arg[len - 1] == '"') { // remove aspas duplas
       arg[len - 1] = '\0';
       args[i] = arg + 1;
-    } else if (arg[0] == '\'' && arg[len - 1] == '\'') {
+    } else if (arg[0] == '\'' && arg[len - 1] == '\'') { // remove aspas simples
       arg[len - 1] = '\0';
       args[i] = arg + 1;
     }
   }
 }
 
+
+/**
+ * Roda o comando com os argumentos
+ * Utilizando um fork para rodar em paralelo
+ * e evitar que o shell seja fechado 
+ *
+ * args argumentos
+ */
 void process_input(char *args[100]) {
   pid_t pid = fork();
 
@@ -272,12 +322,15 @@ void process_input(char *args[100]) {
   }
 }
 
+/**
+ * Função principal
+ */
 int main() {
   while (true) {
     char input[100];
     get_input(input);
 
-    if (strcmp(input, "exit") == 0) {
+    if (strcmp(input, "exit") == 0) { // comando para sair
       break;
     }
 

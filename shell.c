@@ -31,23 +31,8 @@ int get_pos(char *args[100], char *str) {
  * args argumentos
  */
 void run(char *args[100]) {
-  pid_t pid = fork();
-
-  if (pid == 0) {
-    int ret = execvp(args[0], args);
-    if (ret != 0) {
-      exit(-1);
-    }
-    exit(0);
-  } else {
-    int status;
-    wait(&status);
-    if (status != 0) {
-      // printf("Command failed: %s \n", args[0]);
-      exit(-1);
-    }
-    exit(0);
-  }
+  execvp(args[0], args);
+  printf("Comando não encontrado: %s\n", args[0]);
 }
 
 enum {
